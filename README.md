@@ -1,6 +1,6 @@
 # homekit-wol
 
-Minimal Go HomeKit accessory that wakes one device with a Wake-on-LAN magic packet. It appears in Apple Home as a normal switch. Turning the switch on sends the packet and the switch resets back to off automatically.
+Minimal Go HomeKit bridge that wakes one or more devices with Wake-on-LAN magic packets. Each configured device appears in Apple Home as its own switch. Turning a switch on sends the packet for that target and the switch resets back to off automatically.
 
 ## Requirements
 
@@ -14,22 +14,24 @@ Edit `config.yaml`.
 
 ```yaml
 homekit:
-  pin: "001-02-003"
-  name: "Gaming PC"
-  storage_path: "./db"
+  name: "Wake Targets"
 
-device:
-  name: "Gaming PC"
-  mac: "00:11:22:33:44:55"
-  broadcast_ip: "255.255.255.255"
-  port: 9
+devices:
+  - name: "Gaming PC"
+    mac: "00:11:22:33:44:55"
+  - name: "NAS"
+    mac: "66:77:88:99:aa:bb"
 ```
 
 Notes:
 
-- `pin` can be either `00102003` or `001-02-003`.
+- `homekit.pin` is optional and defaults to `001-02-003`. If you set it explicitly, it can be either `00102003` or `001-02-003`.
+- `homekit.name` is the bridge name and defaults to `Wake Targets`.
+- `storage_path` defaults to `./db` and is where HomeKit pairing data is kept.
+- `wol.broadcast_ip` and `wol.port` provide shared defaults for every device. Each device can override either value individually.
 - `broadcast_ip` defaults to `255.255.255.255`, but some networks require the subnet broadcast address instead, for example `192.168.1.255`.
-- `storage_path` is where HomeKit pairing data is kept.
+- Device MACs must be standard 6-byte Ethernet MAC addresses.
+- Upgrading from the old single-device config requires replacing `device:` with `devices:`. Existing installs may also need the old accessory removed from Apple Home and the `db/` directory cleared before re-pairing the new bridge layout.
 
 ## Run
 
@@ -39,6 +41,8 @@ go run .
 ```
 
 The service logs the HomeKit pin on startup. Pair the accessory in Apple Home with that pin.
+
+When paired, Apple Home shows one bridge plus one switch per configured device.
 
 ## Build
 
@@ -70,7 +74,7 @@ Example `systemd` unit:
 
 ```ini
 [Unit]
-Description=HomeKit Wake-on-LAN accessory
+Description=HomeKit Wake-on-LAN bridge
 After=network-online.target
 Wants=network-online.target
 
@@ -87,6 +91,7 @@ WantedBy=multi-user.target
 ## Behavior
 
 - Apple Home shows the accessory as a switch.
-- Turning the switch on sends one magic packet.
-- After a short delay, the switch resets to off so it behaves like a trigger.
+- Apple Home shows one switch per configured device under the bridge.
+- Turning a switch on sends one magic packet to that device.
+- After a short delay, each switch resets to off so it behaves like a trigger.
 - Pairing data persists in `db/`, so you do not need to re-pair on every restart.

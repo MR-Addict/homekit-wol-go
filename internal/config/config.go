@@ -14,18 +14,20 @@ import (
 )
 
 const (
+	defaultBridgeName   = "Wake Targets"
+	defaultPin          = "00102003"
 	defaultStoragePath  = "./db"
 	defaultBroadcastIP  = "255.255.255.255"
 	defaultPort         = 9
-	defaultName         = "Wake Target"
 	defaultManufacturer = "homekit-wol"
 	defaultModel        = "wake-switch"
 	defaultFirmware     = "1.0.0"
 )
 
 type Config struct {
-	HomeKit HomeKitConfig `yaml:"homekit"`
-	Device  DeviceConfig  `yaml:"device"`
+	HomeKit HomeKitConfig  `yaml:"homekit"`
+	WOL     WOLConfig      `yaml:"wol,omitempty"`
+	Devices []DeviceConfig `yaml:"devices"`
 }
 
 type HomeKitConfig struct {
@@ -38,6 +40,11 @@ type HomeKitConfig struct {
 	Manufacturer  string   `yaml:"manufacturer,omitempty"`
 	Model         string   `yaml:"model,omitempty"`
 	Firmware      string   `yaml:"firmware,omitempty"`
+}
+
+type WOLConfig struct {
+	BroadcastIP string `yaml:"broadcast_ip,omitempty"`
+	Port        int    `yaml:"port,omitempty"`
 }
 
 type DeviceConfig struct {
@@ -86,40 +93,35 @@ func (cfg *Config) normalize() {
 		cfg.HomeKit.Interfaces[index] = strings.TrimSpace(iface)
 	}
 
-	cfg.Device.Name = strings.TrimSpace(cfg.Device.Name)
-	cfg.Device.MAC = strings.TrimSpace(cfg.Device.MAC)
-	cfg.Device.BroadcastIP = strings.TrimSpace(cfg.Device.BroadcastIP)
+	cfg.WOL.BroadcastIP = strings.TrimSpace(cfg.WOL.BroadcastIP)
 
-	if hw, err := net.ParseMAC(cfg.Device.MAC); err == nil {
-		cfg.Device.MAC = strings.ToLower(hw.String())
-		if cfg.HomeKit.SerialNumber == "" {
-			cfg.HomeKit.SerialNumber = strings.ToUpper(strings.ReplaceAll(hw.String(), ":", ""))
+	for index := range cfg.Devices {
+		cfg.Devices[index].Name = strings.TrimSpace(cfg.Devices[index].Name)
+		cfg.Devices[index].MAC = strings.TrimSpace(cfg.Devices[index].MAC)
+		cfg.Devices[index].BroadcastIP = strings.TrimSpace(cfg.Devices[index].BroadcastIP)
+
+		if hw, err := net.ParseMAC(cfg.Devices[index].MAC); err == nil {
+			cfg.Devices[index].MAC = strings.ToLower(hw.String())
 		}
 	}
 }
 
 func (cfg *Config) applyDefaults() {
-	if cfg.Device.Name == "" && cfg.HomeKit.Name != "" {
-		cfg.Device.Name = cfg.HomeKit.Name
-	}
-	if cfg.HomeKit.Name == "" && cfg.Device.Name != "" {
-		cfg.HomeKit.Name = cfg.Device.Name
-	}
-	if cfg.Device.Name == "" {
-		cfg.Device.Name = defaultName
-	}
 	if cfg.HomeKit.Name == "" {
-		cfg.HomeKit.Name = cfg.Device.Name
+		cfg.HomeKit.Name = defaultBridgeName
+	}
+	if cfg.HomeKit.Pin == "" {
+		cfg.HomeKit.Pin = defaultPin
 	}
 
 	if cfg.HomeKit.StoragePath == "" {
 		cfg.HomeKit.StoragePath = defaultStoragePath
 	}
-	if cfg.Device.BroadcastIP == "" {
-		cfg.Device.BroadcastIP = defaultBroadcastIP
+	if cfg.WOL.BroadcastIP == "" {
+		cfg.WOL.BroadcastIP = defaultBroadcastIP
 	}
-	if cfg.Device.Port == 0 {
-		cfg.Device.Port = defaultPort
+	if cfg.WOL.Port == 0 {
+		cfg.WOL.Port = defaultPort
 	}
 	if cfg.HomeKit.Manufacturer == "" {
 		cfg.HomeKit.Manufacturer = defaultManufacturer
@@ -130,8 +132,14 @@ func (cfg *Config) applyDefaults() {
 	if cfg.HomeKit.Firmware == "" {
 		cfg.HomeKit.Firmware = defaultFirmware
 	}
-	if cfg.HomeKit.SerialNumber == "" {
-		cfg.HomeKit.SerialNumber = strings.ToUpper(strings.ReplaceAll(cfg.Device.MAC, ":", ""))
+
+	for index := range cfg.Devices {
+		if cfg.Devices[index].BroadcastIP == "" {
+			cfg.Devices[index].BroadcastIP = cfg.WOL.BroadcastIP
+		}
+		if cfg.Devices[index].Port == 0 {
+			cfg.Devices[index].Port = cfg.WOL.Port
+		}
 	}
 }
 
@@ -146,14 +154,8 @@ func (cfg Config) Validate() error {
 		problems = append(problems, "homekit.pin uses a HomeKit-reserved invalid pin")
 	}
 
-	if cfg.HomeKit.Name == "" {
-		problems = append(problems, "homekit.name is required")
-	}
 	if cfg.HomeKit.StoragePath == "" {
 		problems = append(problems, "homekit.storage_path is required")
-	}
-	if cfg.HomeKit.SerialNumber == "" {
-		problems = append(problems, "homekit.serial_number could not be derived; set device.mac or serial_number")
 	}
 
 	if cfg.HomeKit.ListenAddress != "" {
@@ -172,20 +174,61 @@ func (cfg Config) Validate() error {
 		}
 	}
 
-	if cfg.Device.MAC == "" {
-		problems = append(problems, "device.mac is required")
-	} else if _, err := net.ParseMAC(cfg.Device.MAC); err != nil {
-		problems = append(problems, "device.mac must be a valid MAC address")
+	defaultBroadcastIPValid := isValidIPv4(cfg.WOL.BroadcastIP)
+	if cfg.WOL.BroadcastIP == "" {
+		problems = append(problems, "wol.broadcast_ip is required")
+	} else if !defaultBroadcastIPValid {
+		problems = append(problems, "wol.broadcast_ip must be a valid IPv4 address")
 	}
 
-	if cfg.Device.BroadcastIP == "" {
-		problems = append(problems, "device.broadcast_ip is required")
-	} else if ip := net.ParseIP(cfg.Device.BroadcastIP); ip == nil || ip.To4() == nil {
-		problems = append(problems, "device.broadcast_ip must be a valid IPv4 address")
+	defaultPortValid := isValidPort(cfg.WOL.Port)
+	if !defaultPortValid {
+		problems = append(problems, "wol.port must be between 1 and 65535")
 	}
 
-	if cfg.Device.Port < 1 || cfg.Device.Port > 65535 {
-		problems = append(problems, "device.port must be between 1 and 65535")
+	if len(cfg.Devices) == 0 {
+		problems = append(problems, "devices must contain at least one device")
+	}
+
+	seenNames := make(map[string]int, len(cfg.Devices))
+	seenMACs := make(map[string]int, len(cfg.Devices))
+	for index, device := range cfg.Devices {
+		path := fmt.Sprintf("devices[%d]", index)
+
+		if device.Name == "" {
+			problems = append(problems, path+".name is required")
+		} else {
+			nameKey := strings.ToLower(device.Name)
+			if previousIndex, exists := seenNames[nameKey]; exists {
+				problems = append(problems, fmt.Sprintf("%s.name duplicates devices[%d].name", path, previousIndex))
+			} else {
+				seenNames[nameKey] = index
+			}
+		}
+
+		if device.MAC == "" {
+			problems = append(problems, path+".mac is required")
+		} else if hardwareAddr, err := net.ParseMAC(device.MAC); err != nil {
+			problems = append(problems, path+".mac must be a valid MAC address")
+		} else if len(hardwareAddr) != 6 {
+			problems = append(problems, path+".mac must be a 6-byte MAC address")
+		} else if previousIndex, exists := seenMACs[device.MAC]; exists {
+			problems = append(problems, fmt.Sprintf("%s.mac duplicates devices[%d].mac", path, previousIndex))
+		} else {
+			seenMACs[device.MAC] = index
+		}
+
+		if device.BroadcastIP == "" {
+			problems = append(problems, path+".broadcast_ip is required")
+		} else if device.BroadcastIP != cfg.WOL.BroadcastIP || defaultBroadcastIPValid {
+			if !isValidIPv4(device.BroadcastIP) {
+				problems = append(problems, path+".broadcast_ip must be a valid IPv4 address")
+			}
+		}
+
+		if !isValidPort(device.Port) {
+			problems = append(problems, path+".port must be between 1 and 65535")
+		}
 	}
 
 	if len(problems) > 0 {
@@ -204,4 +247,13 @@ func normalizePin(pin string) string {
 		}
 	}
 	return builder.String()
+}
+
+func isValidIPv4(address string) bool {
+	ip := net.ParseIP(strings.TrimSpace(address))
+	return ip != nil && ip.To4() != nil
+}
+
+func isValidPort(port int) bool {
+	return port >= 1 && port <= 65535
 }

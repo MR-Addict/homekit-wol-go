@@ -7,7 +7,7 @@ import (
 	"github.com/brutella/hap/accessory"
 )
 
-const DefaultResetDelay = time.Second
+const DefaultResetDelay = time.Second * 5
 
 type WakeFunc func(context.Context) error
 

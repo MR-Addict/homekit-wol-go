@@ -1,6 +1,6 @@
 homekit:
-  pin: "001-02-003"
-  name: "Gaming PC"
+  # pin defaults to "001-02-003"
+  name: "Wake Targets"
   storage_path: "./db"
   manufacturer: "homekit-wol"
   model: "wake-switch"
@@ -9,8 +9,14 @@ homekit:
   # interfaces:
   #   - "eth0"
 
-device:
-  name: "Gaming PC"
-  mac: "00:11:22:33:44:55"
+wol:
   broadcast_ip: "255.255.255.255"
   port: 9
+
+devices:
+  - name: "Gaming PC"
+    mac: "00:11:22:33:44:55"
+  - name: "NAS"
+    mac: "66:77:88:99:aa:bb"
+    # broadcast_ip: "192.168.1.255"
+    # port: 7
