@@ -29,7 +29,7 @@ Notes:
 - `homekit.name` is the bridge name and defaults to `Wake Targets`.
 - `storage_path` defaults to `./db` and is where HomeKit pairing data is kept.
 - `wol.broadcast_ip` and `wol.port` provide shared defaults for every device. Each device can override either value individually.
-- `broadcast_ip` defaults to `255.255.255.255`, but some networks require the subnet broadcast address instead, for example `192.168.1.255`.
+- Prefer a subnet broadcast such as `192.168.1.255` when you know it. `255.255.255.255` remains the default, and the sender also tries active interface-directed broadcast addresses as a fallback when that limited broadcast is used.
 - Device MACs must be standard 6-byte Ethernet MAC addresses.
 - Upgrading from the old single-device config requires replacing `device:` with `devices:`. Existing installs may also need the old accessory removed from Apple Home and the `db/` directory cleared before re-pairing the new bridge layout.
 
@@ -121,6 +121,12 @@ start_service() {
 
 - Apple Home shows the accessory as a switch.
 - Apple Home shows one switch per configured device under the bridge.
-- Turning a switch on sends one magic packet to that device.
+- Turning a switch on sends one magic packet to that device. When the configured broadcast address is `255.255.255.255`, the sender also tries broadcast addresses derived from active IPv4 interfaces.
 - After a short delay, each switch resets to off so it behaves like a trigger.
 - Pairing data persists in `db/`, so you do not need to re-pair on every restart.
+
+## Troubleshooting
+
+- On Linux and OpenWrt, start by setting each device `broadcast_ip` to the subnet broadcast for that LAN, for example `192.168.1.255`.
+- Check the startup log line for each target to confirm the expected broadcast IP and UDP port are loaded.
+- If wake still fails, capture traffic on the host during a wake attempt and confirm a UDP magic packet leaves on the expected interface.

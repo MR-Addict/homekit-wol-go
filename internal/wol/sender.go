@@ -2,11 +2,14 @@ package wol
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 )
+
+const limitedBroadcastIP = "255.255.255.255"
 
 func BuildMagicPacket(mac net.HardwareAddr) ([]byte, error) {
 	if len(mac) != 6 {
@@ -35,6 +38,26 @@ func Send(ctx context.Context, mac, broadcastIP string, port int) error {
 		return err
 	}
 
+	targets := resolveBroadcastTargets(broadcastIP, localBroadcastTargets())
+	if len(targets) == 0 {
+		return fmt.Errorf("resolve broadcast targets: no valid IPv4 broadcast targets")
+	}
+
+	var sendErrors []error
+	for _, target := range targets {
+		if err := sendPacket(ctx, packet, target, port); err != nil {
+			sendErrors = append(sendErrors, err)
+			continue
+		}
+
+		return nil
+	}
+
+	return errors.Join(sendErrors...)
+}
+
+func sendPacket(ctx context.Context, packet []byte, broadcastIP string, port int) error {
+
 	address := net.JoinHostPort(strings.TrimSpace(broadcastIP), strconv.Itoa(port))
 	dialer := net.Dialer{
 		Control: enableBroadcastSocket,
@@ -61,4 +84,91 @@ func Send(ctx context.Context, mac, broadcastIP string, port int) error {
 	}
 
 	return nil
+}
+
+func resolveBroadcastTargets(configured string, interfaceBroadcasts []string) []string {
+	configured = strings.TrimSpace(configured)
+	if configured == "" {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	targets := make([]string, 0, 1+len(interfaceBroadcasts))
+	appendTarget := func(ip string) {
+		if !isValidIPv4(ip) {
+			return
+		}
+		if _, exists := seen[ip]; exists {
+			return
+		}
+		seen[ip] = struct{}{}
+		targets = append(targets, ip)
+	}
+
+	appendTarget(configured)
+	if configured != limitedBroadcastIP {
+		return targets
+	}
+
+	for _, ip := range interfaceBroadcasts {
+		appendTarget(ip)
+	}
+
+	return targets
+}
+
+func localBroadcastTargets() []string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+
+	targets := make([]string, 0, len(interfaces))
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addresses, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, address := range addresses {
+			ipNet, ok := address.(*net.IPNet)
+			if !ok {
+				continue
+			}
+
+			if broadcast := directedBroadcast(ipNet); broadcast != "" {
+				targets = append(targets, broadcast)
+			}
+		}
+	}
+
+	return targets
+}
+
+func directedBroadcast(ipNet *net.IPNet) string {
+	if ipNet == nil || ipNet.IP == nil || ipNet.Mask == nil {
+		return ""
+	}
+
+	ip := ipNet.IP.To4()
+	mask := ipNet.Mask
+	if ip == nil || len(mask) != net.IPv4len {
+		return ""
+	}
+
+	broadcast := make(net.IP, net.IPv4len)
+	for index := 0; index < net.IPv4len; index++ {
+		broadcast[index] = ip[index] | ^mask[index]
+	}
+
+	return broadcast.String()
+}
+
+func isValidIPv4(address string) bool {
+	ip := net.ParseIP(strings.TrimSpace(address))
+	return ip != nil && ip.To4() != nil
 }

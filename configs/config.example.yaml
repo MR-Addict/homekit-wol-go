@@ -10,6 +10,8 @@ homekit:
   #   - "eth0"
 
 wol:
+  # Prefer your subnet broadcast address when you know it, for example "192.168.1.255".
+  # If left at 255.255.255.255, homekit-wol also tries active interface broadcasts.
   broadcast_ip: "255.255.255.255"
   port: 9
 

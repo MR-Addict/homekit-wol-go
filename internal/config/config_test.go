@@ -119,6 +119,49 @@ devices:
 	}
 }
 
+func TestLoadAllowsDeviceBroadcastOverride(t *testing.T) {
+	path := writeTempConfig(t, `
+homekit:
+  pin: "001-02-003"
+wol:
+  broadcast_ip: "255.255.255.255"
+devices:
+  - name: "Gaming PC"
+    mac: "00:11:22:33:44:55"
+    broadcast_ip: "192.168.1.255"
+`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.Devices[0].BroadcastIP != "192.168.1.255" {
+		t.Fatalf("expected device override broadcast IP, got %q", cfg.Devices[0].BroadcastIP)
+	}
+}
+
+func TestLoadRejectsInvalidDeviceBroadcastOverride(t *testing.T) {
+	path := writeTempConfig(t, `
+homekit:
+  pin: "001-02-003"
+wol:
+  broadcast_ip: "255.255.255.255"
+devices:
+  - name: "Gaming PC"
+    mac: "00:11:22:33:44:55"
+    broadcast_ip: "not-an-ip"
+`)
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected invalid device broadcast override to fail validation")
+	}
+	if !strings.Contains(err.Error(), "devices[0].broadcast_ip") {
+		t.Fatalf("expected devices[0].broadcast_ip validation error, got %v", err)
+	}
+}
+
 func TestLoadRejectsNonEthernetMAC(t *testing.T) {
 	path := writeTempConfig(t, `
 homekit:

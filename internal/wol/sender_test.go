@@ -3,6 +3,7 @@ package wol
 import (
 	"context"
 	"net"
+	"reflect"
 	"testing"
 )
 
@@ -46,5 +47,23 @@ func TestSendRejectsInvalidMAC(t *testing.T) {
 	err := Send(context.Background(), "not-a-mac", "255.255.255.255", 9)
 	if err == nil {
 		t.Fatal("expected invalid MAC to fail")
+	}
+}
+
+func TestResolveBroadcastTargetsKeepsDirectedBroadcast(t *testing.T) {
+	targets := resolveBroadcastTargets("192.168.1.255", nil)
+	want := []string{"192.168.1.255"}
+
+	if !reflect.DeepEqual(targets, want) {
+		t.Fatalf("resolveBroadcastTargets() = %v, want %v", targets, want)
+	}
+}
+
+func TestResolveBroadcastTargetsExpandsLimitedBroadcast(t *testing.T) {
+	targets := resolveBroadcastTargets("255.255.255.255", []string{"192.168.1.255", "10.0.0.255", "192.168.1.255", "not-an-ip"})
+	want := []string{"255.255.255.255", "192.168.1.255", "10.0.0.255"}
+
+	if !reflect.DeepEqual(targets, want) {
+		t.Fatalf("resolveBroadcastTargets() = %v, want %v", targets, want)
 	}
 }
