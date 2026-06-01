@@ -33,7 +33,7 @@ Notes:
 
 ## Run
 
-```bash
+```sh
 go test ./...
 go run .
 ```
@@ -42,9 +42,17 @@ The service logs the HomeKit pin on startup. Pair the accessory in Apple Home wi
 
 ## Build
 
-```bash
+Build for the current platform:
+
+```sh
 mkdir -p bin
 go build -o bin/homekit-wol .
+```
+
+Build for Linux on MIPS with softfloat (e.g. Raspberry Pi Zero):
+
+```sh
+env GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/homekit-wol-router .
 ```
 
 ## Linux service
