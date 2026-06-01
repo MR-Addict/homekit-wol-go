@@ -1,0 +1,16 @@
+homekit:
+  pin: "001-02-003"
+  name: "Gaming PC"
+  storage_path: "./db"
+  manufacturer: "homekit-wol"
+  model: "wake-switch"
+  firmware: "1.0.0"
+  # listen_address: ":32042"
+  # interfaces:
+  #   - "eth0"
+
+device:
+  name: "Gaming PC"
+  mac: "00:11:22:33:44:55"
+  broadcast_ip: "255.255.255.255"
+  port: 9
