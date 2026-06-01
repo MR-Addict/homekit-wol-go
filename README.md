@@ -10,7 +10,7 @@ Minimal Go HomeKit bridge that wakes one or more devices with Wake-on-LAN magic 
 
 ## Configuration
 
-Edit `config.yaml`.
+Start from `configs/config.example.yaml`, then edit `config.yaml`.
 
 ```yaml
 homekit:
@@ -37,7 +37,7 @@ Notes:
 
 ```sh
 go test ./...
-go run .
+go run ./cmd/homekit-wol
 ```
 
 The service logs the HomeKit pin on startup. Pair the accessory in Apple Home with that pin.
@@ -50,22 +50,22 @@ Build for the current platform:
 
 ```sh
 mkdir -p bin
-go build -o bin/homekit-wol . # Unix
-go build -o bin/homekit-wol.exe . # Windows
+go build -o bin/homekit-wol ./cmd/homekit-wol # Unix
+go build -o bin/homekit-wol.exe ./cmd/homekit-wol # Windows
 ```
 
 Build for Linux on MIPS with softfloat (e.g. Raspberry Pi Zero):
 
 ```sh
-env GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/homekit-wol . # Linux MIPS
-$env:GOOS="linux"; $env:GOARCH="mipsle"; $env:GOMIPS="softfloat"; $env:CGO_ENABLED="0"; go build -ldflags="-s -w" -trimpath -o bin/homekit-wol . # Linux MIPS
+env GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/homekit-wol ./cmd/homekit-wol # Linux MIPS
+$env:GOOS="linux"; $env:GOARCH="mipsle"; $env:GOMIPS="softfloat"; $env:CGO_ENABLED="0"; go build -ldflags="-s -w" -trimpath -o bin/homekit-wol ./cmd/homekit-wol # Linux MIPS
 ```
 
 Build for Linux on ARM64 (e.g. Raspberry Pi 3/4):
 
 ```sh
-env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/homekit-wol . # Linux ARM64
-$env:GOOS="linux"; $env:GOARCH="arm64"; $env:CGO_ENABLED="0"; go build -ldflags="-s -w" -trimpath -o bin/homekit-wol . # Linux ARM64
+env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/homekit-wol ./cmd/homekit-wol # Linux ARM64
+$env:GOOS="linux"; $env:GOARCH="arm64"; $env:CGO_ENABLED="0"; go build -ldflags="-s -w" -trimpath -o bin/homekit-wol ./cmd/homekit-wol # Linux ARM64
 ```
 
 ## Linux service
@@ -86,6 +86,35 @@ User=pi
 
 [Install]
 WantedBy=multi-user.target
+```
+
+Example OpenWRT init script:
+
+```ini
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=99
+STOP=10
+
+start_service() {
+  procd_open_instance
+
+  # Use /bin/sh to change the directory, then 'exec' the application
+  procd_set_param command /bin/sh -c "cd /root/projects/homekit-wol && exec ./homekit-wol"
+
+  # Set the working directory
+  procd_set_param env PWD=/root/projects/homekit-wol
+
+  # Forward output to the system log (viewable with 'logread')
+  procd_set_param stdout 1
+  procd_set_param stderr 1
+
+  # Automatically restart the app if it crashes
+  procd_set_param respawn
+
+  procd_close_instance
+}
 ```
 
 ## Behavior
