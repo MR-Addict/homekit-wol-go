@@ -46,13 +46,22 @@ Build for the current platform:
 
 ```sh
 mkdir -p bin
-go build -o bin/homekit-wol .
+go build -o bin/homekit-wol . # Unix
+go build -o bin/homekit-wol.exe . # Windows
 ```
 
 Build for Linux on MIPS with softfloat (e.g. Raspberry Pi Zero):
 
 ```sh
-env GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/homekit-wol-router .
+env GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/homekit-wol . # Linux MIPS
+$env:GOOS="linux"; $env:GOARCH="mipsle"; $env:GOMIPS="softfloat"; $env:CGO_ENABLED="0"; go build -ldflags="-s -w" -trimpath -o bin/homekit-wol . # Linux MIPS
+```
+
+Build for Linux on ARM64 (e.g. Raspberry Pi 3/4):
+
+```sh
+env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/homekit-wol . # Linux ARM64
+$env:GOOS="linux"; $env:GOARCH="arm64"; $env:CGO_ENABLED="0"; go build -ldflags="-s -w" -trimpath -o bin/homekit-wol . # Linux ARM64
 ```
 
 ## Linux service

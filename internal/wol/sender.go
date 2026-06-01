@@ -6,7 +6,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 func BuildMagicPacket(mac net.HardwareAddr) ([]byte, error) {
@@ -38,15 +37,7 @@ func Send(ctx context.Context, mac, broadcastIP string, port int) error {
 
 	address := net.JoinHostPort(strings.TrimSpace(broadcastIP), strconv.Itoa(port))
 	dialer := net.Dialer{
-		Control: func(_, _ string, rawConn syscall.RawConn) error {
-			var controlErr error
-			if err := rawConn.Control(func(fd uintptr) {
-				controlErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
-			}); err != nil {
-				return err
-			}
-			return controlErr
-		},
+		Control: enableBroadcastSocket,
 	}
 
 	conn, err := dialer.DialContext(ctx, "udp4", address)
