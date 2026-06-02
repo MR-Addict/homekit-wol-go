@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -167,11 +168,8 @@ func (cfg Config) Validate() error {
 		}
 	}
 
-	for _, iface := range cfg.HomeKit.Interfaces {
-		if iface == "" {
-			problems = append(problems, "homekit.interfaces cannot contain empty values")
-			break
-		}
+	if slices.Contains(cfg.HomeKit.Interfaces, "") {
+		problems = append(problems, "homekit.interfaces cannot contain empty values")
 	}
 
 	defaultBroadcastIPValid := isValidIPv4(cfg.WOL.BroadcastIP)

@@ -17,7 +17,7 @@ func BuildMagicPacket(mac net.HardwareAddr) ([]byte, error) {
 	}
 
 	packet := make([]byte, 6+(16*len(mac)))
-	for index := 0; index < 6; index++ {
+	for index := range 6 {
 		packet[index] = 0xFF
 	}
 	for index := 6; index < len(packet); index += len(mac) {
@@ -161,7 +161,7 @@ func directedBroadcast(ipNet *net.IPNet) string {
 	}
 
 	broadcast := make(net.IP, net.IPv4len)
-	for index := 0; index < net.IPv4len; index++ {
+	for index := range net.IPv4len {
 		broadcast[index] = ip[index] | ^mask[index]
 	}
 

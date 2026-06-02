@@ -93,8 +93,6 @@ func buildServerAccessories(cfg config.Config) ([]*accessory.A, error) {
 	accessories = append(accessories, bridge.A)
 
 	for _, device := range cfg.Devices {
-		device := device
-
 		wakeSwitch := homekit.NewWakeSwitch(accessory.Info{
 			Name:         device.Name,
 			SerialNumber: serialNumberForMAC(device.MAC),
